@@ -54,11 +54,13 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 }
 
 func evalIdentifier(node *ast.Identifier, env *object.Environment) object.Object {
-	val, ok := env.Get(node.Value)
-	if !ok {
-		return newError("identifier not found: %s", node.Value)
+	if val, ok := env.Get(node.Value); ok {
+		return val
 	}
-	return val
+	if builtin, ok := builtins[node.Value]; ok {
+		return builtin
+	}
+	return newError("identifier not found: %s", node.Value)
 }
 
 func evalFuncLiteral(node *ast.FunctionLiteral, env *object.Environment) object.Object {
@@ -84,17 +86,22 @@ func evalCallExpression(node *ast.CallExpression, env *object.Environment) objec
 }
 
 func applyFunction(fn object.Object, args []object.Object) object.Object {
-	function, ok := fn.(*object.Function)
-	if !ok {
+
+	switch function := fn.(type) {
+	case *object.Function:
+		if len(args) != len(function.Parameters) {
+			return newError("wrong number of arguments for function %s: %d instead of %d", "IDK", len(args), len(function.Parameters))
+		}
+
+		extEnv := extendedFunctionEnv(function, args)
+		evaluated := Eval(function.Body, extEnv)
+		return unwrapReturnValue(evaluated)
+	case *object.Builtin:
+		// todo: add validation on numbers of parameters
+		return function.Fn(args...)
+	default:
 		return newError("not a function: %s", fn.Type())
 	}
-
-	if len(args) != len(function.Parameters) {
-		return newError("wrong number of arguments for function %s: %d instead of %d", "IDK", len(args), len(function.Parameters))
-	}
-	extEnv := extendedFunctionEnv(function, args)
-	evaluated := Eval(function.Body, extEnv)
-	return unwrapReturnValue(evaluated)
 }
 
 func extendedFunctionEnv(fn *object.Function, args []object.Object) *object.Environment {

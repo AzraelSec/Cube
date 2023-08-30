@@ -13,6 +13,7 @@ type ObjectType string
 const (
 	INTEGER_OBJ      = "INTEGER"
 	BOOLEAN_OBJ      = "BOOLEAN"
+	STRING_OBJ       = "STRING"
 	NULL_OBJ         = "NULL"
 	RETURN_VALUE_OBJ = "RETURN_VALUE"
 	ERROR_OBJ        = "ERROR"
@@ -30,6 +31,13 @@ type Integer struct {
 
 func (*Integer) Type() ObjectType  { return INTEGER_OBJ }
 func (i *Integer) Inspect() string { return fmt.Sprintf("%d", i.Value) }
+
+type String struct {
+	Value string
+}
+
+func (*String) Type() ObjectType  { return STRING_OBJ }
+func (s *String) Inspect() string { return s.Value }
 
 type Boolean struct {
 	Value bool
@@ -72,11 +80,11 @@ func (f *Function) Inspect() string {
 		params = append(params, p.String())
 	}
 
-  buff.WriteString("fn(")
-  buff.WriteString(strings.Join(params, ", "))
-  buff.WriteString(") {\n")
-  buff.WriteString(f.Body.String())
-  buff.WriteString("\n}")
+	buff.WriteString("fn(")
+	buff.WriteString(strings.Join(params, ", "))
+	buff.WriteString(") {\n")
+	buff.WriteString(f.Body.String())
+	buff.WriteString("\n}")
 
 	return buff.String()
 }

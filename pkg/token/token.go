@@ -5,9 +5,10 @@ const (
 	ILLEGAL = "ILLEGAL"
 	EOF     = "EOF"
 
-	// identifiers
-	IDENT = "IDENT"
-	INT   = "INT"
+	// types
+	IDENT  = "IDENT"
+	INT    = "INT"
+	STRING = "STRING"
 
 	// operators
 	ASSIGN   = "="
@@ -59,10 +60,10 @@ type Token struct {
 	Literal string
 }
 
-func New(tokenType TokenType, literal byte) Token {
+func New(tokenType TokenType, literal string) Token {
 	return Token{
 		Type:    tokenType,
-		Literal: string(literal),
+		Literal: literal,
 	}
 }
 

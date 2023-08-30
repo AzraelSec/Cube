@@ -50,6 +50,15 @@ func (*Boolean) expressionNode()        {}
 func (b *Boolean) TokenLiteral() string { return b.Token.Literal }
 func (b *Boolean) String() string       { return b.Token.Literal }
 
+type StringLiteral struct {
+	Token token.Token // token.STRING
+	Value string
+}
+
+func (*StringLiteral) expressionNode()        {}
+func (s *StringLiteral) TokenLiteral() string { return s.Token.Literal }
+func (s *StringLiteral) String() string       { return s.Token.Literal }
+
 type IfExpression struct {
 	Token       token.Token // token.IF
 	Condition   Expression

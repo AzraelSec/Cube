@@ -19,6 +19,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return Eval(node.Expression, env)
 	case *ast.IntegerLiteral:
 		return &object.Integer{Value: node.Value}
+	case *ast.StringLiteral:
+		return &object.String{Value: node.Value}
 	case *ast.Boolean:
 		return nativeBooleanMap(node.Value)
 	case *ast.PrefixExpression:
@@ -205,14 +207,25 @@ func evalInfixExpression(op string, left, right object.Object) object.Object {
 		return evalInfixIntegerExpression(op, left, right)
 	case left.Type() == object.BOOLEAN_OBJ && right.Type() == object.BOOLEAN_OBJ:
 		return evalInfixBooleanExpression(op, left, right)
+	case left.Type() == object.STRING_OBJ && left.Type() == object.STRING_OBJ:
+		return evalInfixStringExpression(op, left, right)
 	// todo: remove this case to impement concatenation
+
 	case left.Type() != right.Type():
 		return newError("type mismatch: %s %s %s", left.Type(), op, right.Type())
 	default:
 		return newError("unknown operator %s %s %s", left.Type(), op, right.Type())
 	}
 }
-
+func evalInfixStringExpression(op string, left, right object.Object) object.Object {
+	leftVal, rightVal := left.(*object.String).Value, right.(*object.String).Value
+	switch op {
+	case "+":
+		return &object.String{Value: leftVal + rightVal}
+	default:
+		return newError("unknown operator: %s %s %s", left.Type(), op, right.Type())
+	}
+}
 func evalInfixBooleanExpression(op string, left, right object.Object) object.Object {
 	leftVal, rightVal := left.(*object.Boolean).Value, right.(*object.Boolean).Value
 
@@ -225,7 +238,6 @@ func evalInfixBooleanExpression(op string, left, right object.Object) object.Obj
 		return newError("unknown operator: %s %s %s", left.Type(), op, right.Type())
 	}
 }
-
 func evalInfixIntegerExpression(op string, left, right object.Object) object.Object {
 	leftVal, rightVal := left.(*object.Integer).Value, right.(*object.Integer).Value
 

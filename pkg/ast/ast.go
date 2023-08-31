@@ -59,6 +59,49 @@ func (*StringLiteral) expressionNode()        {}
 func (s *StringLiteral) TokenLiteral() string { return s.Token.Literal }
 func (s *StringLiteral) String() string       { return s.Token.Literal }
 
+type ArrayLiteral struct {
+	Token    token.Token // token.LBRACKET
+	Elements []Expression
+}
+
+func (*ArrayLiteral) expressionNode()         {}
+func (al *ArrayLiteral) TokenLiteral() string { return al.Token.Literal }
+func (al *ArrayLiteral) String() string {
+	var buff bytes.Buffer
+
+	elems := make([]string, len(al.Elements))
+	for idx, e := range al.Elements {
+		elems[idx] = e.String()
+	}
+
+	buff.WriteString("[")
+	buff.WriteString(strings.Join(elems, ", "))
+	buff.WriteString("]")
+
+	return buff.String()
+}
+
+type IndexExpression struct {
+	Token token.Token // token.LBRACKET
+	Left  Expression  // the array
+	Index Expression  // the integer (or derived) index
+}
+
+func (*IndexExpression) expressionNode()         {}
+func (ie *IndexExpression) TokenLiteral() string { return ie.Token.Literal }
+func (ie *IndexExpression) String() string {
+	var buff bytes.Buffer
+
+	buff.WriteString("(")
+	buff.WriteString(ie.Left.String())
+	buff.WriteString("[")
+	buff.WriteString(ie.Index.String())
+	buff.WriteString("]")
+	buff.WriteString(")")
+
+	return buff.String()
+}
+
 type IfExpression struct {
 	Token       token.Token // token.IF
 	Condition   Expression

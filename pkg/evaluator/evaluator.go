@@ -49,6 +49,10 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalFuncLiteral(node, env)
 	case *ast.CallExpression:
 		return evalCallExpression(node, env)
+	case *ast.ArrayLiteral:
+		return evalArrayLiteral(node, env)
+	case *ast.IndexExpression:
+		return evalIndexExpression(node, env)
 	}
 	return nil
 }
@@ -73,20 +77,15 @@ func evalCallExpression(node *ast.CallExpression, env *object.Environment) objec
 		return function
 	}
 
-	evalParams := make([]object.Object, len(node.Args))
-	for i, param := range node.Args {
-		param := Eval(param, env)
-		if isError(param) {
-			return param
-		}
-		evalParams[i] = param
+	evalParams, ok := evalExpressionList(node.Args, env)
+	if !ok {
+		// note: we assert it to be something based on our implementation
+		return evalParams[0]
 	}
 
 	return applyFunction(function, evalParams)
 }
-
 func applyFunction(fn object.Object, args []object.Object) object.Object {
-
 	switch function := fn.(type) {
 	case *object.Function:
 		if len(args) != len(function.Parameters) {
@@ -103,7 +102,6 @@ func applyFunction(fn object.Object, args []object.Object) object.Object {
 		return newError("not a function: %s", fn.Type())
 	}
 }
-
 func extendedFunctionEnv(fn *object.Function, args []object.Object) *object.Environment {
 	env := object.NewEnclosedEnvironment(fn.Env)
 	for idx, param := range fn.Parameters {
@@ -111,7 +109,6 @@ func extendedFunctionEnv(fn *object.Function, args []object.Object) *object.Envi
 	}
 	return env
 }
-
 func unwrapReturnValue(evaluated object.Object) object.Object {
 	if returnValue, ok := evaluated.(*object.ReturnValue); ok {
 		return returnValue.Value
@@ -131,6 +128,14 @@ func evalIfExpression(ie *ast.IfExpression, env *object.Environment) object.Obje
 		return Eval(ie.Alternative, env)
 	}
 	return NULL
+}
+
+func evalArrayLiteral(node *ast.ArrayLiteral, env *object.Environment) object.Object {
+	elems, ok := evalExpressionList(node.Elements, env)
+	if !ok {
+		return elems[0]
+	}
+	return &object.Array{Elements: elems}
 }
 
 func evalProgram(stms []ast.Statement, env *object.Environment) object.Object {
@@ -214,7 +219,7 @@ func evalInfixExpression(op string, left, right object.Object) object.Object {
 		return evalInfixIntegerExpression(op, left, right)
 	case left.Type() == object.BOOLEAN_OBJ && right.Type() == object.BOOLEAN_OBJ:
 		return evalInfixBooleanExpression(op, left, right)
-	case left.Type() == object.STRING_OBJ && left.Type() == object.STRING_OBJ:
+	case left.Type() == object.STRING_OBJ && right.Type() == object.STRING_OBJ:
 		return evalInfixStringExpression(op, left, right)
 	// todo: remove this case to impement concatenation
 
@@ -268,4 +273,47 @@ func evalInfixIntegerExpression(op string, left, right object.Object) object.Obj
 	default:
 		return newError("unknown operator: %s %s %s", left.Type(), op, left.Type())
 	}
+}
+
+func evalExpressionList(exps []ast.Expression, env *object.Environment) (result []object.Object, ok bool) {
+	result = make([]object.Object, len(exps))
+
+	for i, exp := range exps {
+		elem := Eval(exp, env)
+		if isError(elem) {
+			return []object.Object{elem}, false
+		}
+		result[i] = elem
+	}
+
+	return result, true
+}
+func evalIndexExpression(node *ast.IndexExpression, env *object.Environment) object.Object {
+	leftVal := Eval(node.Left, env)
+	if isError(leftVal) {
+		return leftVal
+	}
+
+	indexVal := Eval(node.Index, env)
+	if isError(indexVal) {
+		return indexVal
+	}
+
+	switch {
+	case leftVal.Type() == object.ARRAY_OBJ && indexVal.Type() == object.INTEGER_OBJ:
+		return evalArrayIndexExpression(leftVal, indexVal, env)
+	default:
+		return newError("index operator not supported: %s", leftVal.Type())
+	}
+}
+func evalArrayIndexExpression(array, index object.Object, env *object.Environment) object.Object {
+	arrayObj := array.(*object.Array)
+	indexVal := index.(*object.Integer).Value
+
+	if indexVal < 0 || indexVal >= int64(len(arrayObj.Elements)) {
+		// todo: change this for an error
+		return NULL
+	}
+
+	return arrayObj.Elements[indexVal]
 }

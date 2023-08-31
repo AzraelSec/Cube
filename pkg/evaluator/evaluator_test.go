@@ -311,33 +311,173 @@ func testBooleanObject(t *testing.T, obj object.Object, expected bool) bool {
 	return true
 }
 
+func testStringObject(t *testing.T, obj object.String, expected string) bool {
+	if obj.Value != expected {
+		t.Errorf("object has wrong value. got=%s, want=%s", obj.Value, expected)
+		return false
+	}
+	return true
+}
+
+func testArrayIntObject(t *testing.T, obj object.Array, expected []int) bool {
+	if len(obj.Elements) != len(expected) {
+		t.Errorf("object has wrong number of elements. got=[%+v], want=[%+v]", obj.Elements, expected)
+		return false
+	}
+
+	for idx, elem := range obj.Elements {
+		celem, ok := elem.(*object.Integer)
+		if !ok {
+			t.Errorf("object has wrong element type. got=%T, want=*object.Integer", elem)
+			return false
+		}
+		if celem.Value != int64(expected[idx]) {
+			t.Errorf("object has value. got=%q, want=*object.Integer", elem)
+			return false
+		}
+	}
+	return true
+}
+
 func TestBuiltinFunctions(t *testing.T) {
 	tests := []struct {
-		input string
+		input    string
+		err      bool
 		expected interface{}
 	}{
-		{`len("")`, 0},
-		{`len("four")`, 4},
-		{`len("hello world")`, 11},
-		{`len(1)`, "argument to `len` not supported, got INTEGER"},
-		{`len("one", "two")`, "wrong number of arguments. got=2, want=1"},
+		{`len("")`, false, 0},
+		{`len("four")`, false, 4},
+		{`len("hello world")`, false, 11},
+		{`len(1)`, true, "argument to `len` not supported, got INTEGER"},
+		{`len("one", "two")`, true, "wrong number of arguments. got=2, want=1"},
+		{`len([])`, false, 0},
+		{`len([1, "something"])`, false, 2},
+
+		{`first([1, "something"])`, false, 1},
+		{`first([])`, true, nil},
+		{`first("something")`, false, "s"},
+		{`first("")`, false, ""},
+
+		{`last([1, "something"])`, false, "something"},
+		{`last([])`, true, nil},
+		{`last("something")`, false, "g"},
+		{`last("")`, false, ""},
+
+		{`rest([1, 2, 3])`, false, []int{2, 3}},
+		{`rest([])`, false, []int{}},
+
+		{`push([1, 2], 3)`, false, []int{1, 2, 3}},
+		{`push([], 2)`, false, []int{2}},
 	}
 	for _, tt := range tests {
 		evaluated := testEval(tt.input)
-		switch expected := tt.expected.(type) {
-		case int:
-			testIntegerObject(t, evaluated, int64(expected))
-		case string:
-			errObj, ok := evaluated.(*object.Error)
-			if !ok {
-				t.Errorf("object is not Error. got=%T (%+v)",
-					evaluated, evaluated)
+		switch eval := evaluated.(type) {
+		case *object.Null:
+			if tt.err {
 				continue
 			}
-			if errObj.Msg!= expected {
-				t.Errorf("wrong error message. expected=%q, got=%q",
-					expected, errObj.Msg)
+			t.Errorf("unexpected nil result: want=int, got=%T", tt.expected)
+		case *object.Error:
+			if !tt.err {
+				t.Errorf("unexpected error. got=%T (%+v)", evaluated, evaluated)
+				continue
 			}
+			if eval.Msg != tt.expected {
+				t.Errorf("wrong error message. expected=%q, got=%q", tt.expected, eval.Msg)
+			}
+		case *object.Integer:
+			iexpected, ok := tt.expected.(int)
+			if !ok {
+				t.Errorf("result type mismatch: want=int, got=%T", tt.expected)
+				continue
+			}
+			testIntegerObject(t, eval, int64(iexpected))
+		case *object.String:
+			sexpected, ok := tt.expected.(string)
+			if !ok {
+				t.Errorf("result type mismatch: want=string, got=%T", tt.expected)
+				continue
+			}
+			testStringObject(t, *eval, sexpected)
+		case *object.Array:
+			aexpected, ok := tt.expected.([]int)
+			if !ok {
+				t.Errorf("result type mismatch: want=[]int, got=%T", tt.expected)
+				continue
+			}
+			testArrayIntObject(t, *eval, aexpected)
+		}
+	}
+}
+
+func TestArrayLiterals(t *testing.T) {
+	input := "[1, 2 * 2, 3 + 3]"
+	evaluated := testEval(input)
+	result, ok := evaluated.(*object.Array)
+	if !ok {
+		t.Fatalf("object is not Array. got=%T (%+v)", evaluated, evaluated)
+	}
+	if len(result.Elements) != 3 {
+		t.Fatalf("array has wrong num of elements. got=%d",
+			len(result.Elements))
+	}
+	testIntegerObject(t, result.Elements[0], 1)
+	testIntegerObject(t, result.Elements[1], 4)
+	testIntegerObject(t, result.Elements[2], 6)
+}
+func TestArrayIndexExpressions(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{
+			"[1, 2, 3][0]",
+			1,
+		},
+		{
+			"[1, 2, 3][1]",
+			2,
+		},
+		{
+			"[1, 2, 3][2]",
+			3,
+		},
+		{
+			"let i = 0; [1][i];",
+			1,
+		},
+		{
+			"[1, 2, 3][1 + 1];",
+			3,
+		},
+		{
+			"let myArray = [1, 2, 3]; myArray[2];",
+			3,
+		},
+		{
+			"let myArray = [1, 2, 3]; myArray[0] + myArray[1] + myArray[2];",
+			6,
+		},
+		{
+			"let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i]",
+			2,
+		},
+		{
+			"[1, 2, 3][3]",
+			nil,
+		},
+		{
+			"[1, 2, 3][-1]",
+			nil,
+		},
+	}
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		integer, ok := tt.expected.(int)
+		if ok {
+			testIntegerObject(t, evaluated, int64(integer))
+		} else {
+			testNullObject(t, evaluated)
 		}
 	}
 }

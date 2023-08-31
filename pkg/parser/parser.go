@@ -18,6 +18,7 @@ const (
 	PRODUCT
 	PREFIX
 	CALL
+	INDEX
 )
 
 var opPrecedence = map[token.TokenType]int{
@@ -31,6 +32,8 @@ var opPrecedence = map[token.TokenType]int{
 	token.SLASH:    PRODUCT,
 
 	token.LPAREN: CALL,
+
+	token.LBRACKET: INDEX,
 }
 
 type (
@@ -168,6 +171,13 @@ func (p *Parser) parseIntegerLiteral() ast.Expression {
 func (p *Parser) parseStringLiteral() ast.Expression {
 	return &ast.StringLiteral{Token: p.currToken, Value: p.currToken.Literal}
 }
+func (p *Parser) parseArrayLiteral() ast.Expression {
+	lit := &ast.ArrayLiteral{Token: p.currToken}
+
+	lit.Elements = p.parseExpressionList(token.RBRACKET)
+
+	return lit
+}
 func (p *Parser) parseFunctionLiteral() ast.Expression {
 	fun := &ast.FunctionLiteral{Token: p.currToken}
 
@@ -299,32 +309,46 @@ func (p *Parser) parseIfExpression() ast.Expression {
 
 func (p *Parser) parseCallExpression(exp ast.Expression) ast.Expression {
 	ast := &ast.CallExpression{Token: p.currToken, Function: exp}
-	ast.Args = p.parseCallArguments()
+	ast.Args = p.parseExpressionList(token.RPAREN)
 	return ast
 }
-func (p *Parser) parseCallArguments() []ast.Expression {
-	args := []ast.Expression{}
+
+func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
+	exp := &ast.IndexExpression{Token: p.currToken, Left: left}
 
 	p.nextToken()
 
-	if p.currTokenIs(token.RPAREN) {
-		return args
-	}
+	exp.Index = p.parseExpression(LOWEST)
 
-	args = append(args, p.parseExpression(LOWEST))
-
-	// note: very similar to the parseFunctionParameters
-	for p.peekTokenIs(token.COMMA) {
-		p.nextToken()
-		p.nextToken()
-		args = append(args, p.parseExpression(LOWEST))
-	}
-
-	if !p.expectPeekIs(token.RPAREN) {
+	if !p.expectPeekIs(token.RBRACKET) {
 		return nil
 	}
 
-	return args
+	return exp
+}
+
+func (p *Parser) parseExpressionList(end token.TokenType) []ast.Expression {
+	list := []ast.Expression{}
+
+	if p.peekTokenIs(end) {
+		p.nextToken()
+		return list
+	}
+
+	p.nextToken()
+	list = append(list, p.parseExpression(LOWEST))
+
+	for p.peekTokenIs(token.COMMA) {
+		p.nextToken()
+		p.nextToken()
+		list = append(list, p.parseExpression(LOWEST))
+	}
+
+	if !p.expectPeekIs(end) {
+		return nil
+	}
+
+	return list
 }
 
 // Pratt's Utils
@@ -363,6 +387,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.IDENT, p.parseIdentifier)
 	p.registerPrefix(token.INT, p.parseIntegerLiteral)
 	p.registerPrefix(token.STRING, p.parseStringLiteral)
+	p.registerPrefix(token.LBRACKET, p.parseArrayLiteral)
 	p.registerPrefix(token.BANG, p.parsePrefixExpression)
 	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
 	p.registerPrefix(token.TRUE, p.parseBoolean)
@@ -380,6 +405,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.LT, p.parseInfixExpression)
 	p.registerInfix(token.GT, p.parseInfixExpression)
 	p.registerInfix(token.LPAREN, p.parseCallExpression)
+	p.registerInfix(token.LBRACKET, p.parseIndexExpression)
 
 	p.nextToken()
 	p.nextToken()

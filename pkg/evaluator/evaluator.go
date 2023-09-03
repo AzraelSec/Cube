@@ -224,7 +224,6 @@ func evalInfixExpression(op string, left, right object.Object) object.Object {
 	case left.Type() == object.STRING_OBJ && right.Type() == object.STRING_OBJ:
 		return evalInfixStringExpression(op, left, right)
 	// todo: remove this case to impement concatenation
-
 	case left.Type() != right.Type():
 		return newError("type mismatch: %s %s %s", left.Type(), op, right.Type())
 	default:
@@ -236,6 +235,8 @@ func evalInfixStringExpression(op string, left, right object.Object) object.Obje
 	switch op {
 	case "+":
 		return &object.String{Value: leftVal + rightVal}
+	case "==":
+		return nativeBooleanMap(leftVal == rightVal)
 	default:
 		return newError("unknown operator: %s %s %s", left.Type(), op, right.Type())
 	}

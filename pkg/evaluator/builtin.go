@@ -1,6 +1,10 @@
 package evaluator
 
-import "github.com/AzraelSec/cube/pkg/object"
+import (
+	"fmt"
+
+	"github.com/AzraelSec/cube/pkg/object"
+)
 
 var builtins = map[string]*object.Builtin{
 	"len": {
@@ -92,6 +96,14 @@ var builtins = map[string]*object.Builtin{
 			default:
 				return newError("argument to `push` not supported, got %s", arg.Type())
 			}
+		},
+	},
+	"print": {
+		Fn: func(o ...object.Object) object.Object {
+			for _, arg := range o {
+				fmt.Println(arg.Inspect())
+			}
+			return NULL
 		},
 	},
 }

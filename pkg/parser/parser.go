@@ -351,6 +351,37 @@ func (p *Parser) parseExpressionList(end token.TokenType) []ast.Expression {
 	return list
 }
 
+func (p *Parser) parseHashLiteral() ast.Expression {
+	hash := &ast.HashLiteral{
+		Token: p.currToken,
+		Content: make(map[ast.Expression]ast.Expression),
+	}
+
+	for !p.peekTokenIs(token.RBRACE) {
+		p.nextToken()
+
+		key := p.parseExpression(LOWEST)
+		if !p.expectPeekIs(token.COLON) {
+			return nil
+		}
+
+		p.nextToken()
+		val := p.parseExpression(LOWEST)
+
+		hash.Content[key] = val
+
+		if !p.peekTokenIs(token.RBRACE) && !p.expectPeekIs(token.COMMA) {
+			return nil
+		}
+	}
+
+	if !p.expectPeekIs(token.RBRACE) {
+		return nil
+	}
+
+	return hash
+}
+
 // Pratt's Utils
 func (p *Parser) noPrefixParseFnError(t token.TokenType) {
 	msg := fmt.Sprintf("no prefix parse function for %s", t)
@@ -395,6 +426,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.LPAREN, p.parseGroupedExpression)
 	p.registerPrefix(token.IF, p.parseIfExpression)
 	p.registerPrefix(token.FUNCTION, p.parseFunctionLiteral)
+	p.registerPrefix(token.LBRACE, p.parseHashLiteral)
 
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
 	p.registerInfix(token.MINUS, p.parseInfixExpression)

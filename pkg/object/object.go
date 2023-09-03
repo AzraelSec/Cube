@@ -3,6 +3,7 @@ package object
 import (
 	"bytes"
 	"fmt"
+	"hash/fnv"
 	"strings"
 
 	"github.com/AzraelSec/cube/pkg/ast"
@@ -21,11 +22,22 @@ const (
 	FUNCTION_OBJ     = "FUNCTION"
 	BUILTIN_OBJ      = "BUILTIN"
 	ARRAY_OBJ        = "ARRAY"
+	HASH_OBJ         = "HASH"
 )
 
 type Object interface {
 	Type() ObjectType
 	Inspect() string
+}
+
+type HashKey struct {
+	Type  ObjectType
+	Value uint64
+}
+
+type Hashable interface {
+	// note: introduce caching on return values of the implementations
+	HashKey() HashKey
 }
 
 type Integer struct {
@@ -34,6 +46,9 @@ type Integer struct {
 
 func (*Integer) Type() ObjectType  { return INTEGER_OBJ }
 func (i *Integer) Inspect() string { return fmt.Sprintf("%d", i.Value) }
+func (i *Integer) HashKey() HashKey {
+	return HashKey{Type: i.Type(), Value: uint64(i.Value)}
+}
 
 type String struct {
 	Value string
@@ -41,6 +56,11 @@ type String struct {
 
 func (*String) Type() ObjectType  { return STRING_OBJ }
 func (s *String) Inspect() string { return s.Value }
+func (s *String) HashKey() HashKey {
+	h := fnv.New64a()
+	h.Write([]byte(s.Value))
+	return HashKey{Type: s.Type(), Value: h.Sum64()}
+}
 
 type Boolean struct {
 	Value bool
@@ -48,6 +68,13 @@ type Boolean struct {
 
 func (*Boolean) Type() ObjectType  { return BOOLEAN_OBJ }
 func (i *Boolean) Inspect() string { return fmt.Sprintf("%t", i.Value) }
+func (i *Boolean) HashKey() HashKey {
+	var value uint64 = 1
+	if i.Value == false {
+		value = 0
+	}
+	return HashKey{Type: i.Type(), Value: value}
+}
 
 type Null struct{}
 
@@ -115,6 +142,30 @@ func (a *Array) Inspect() string {
 	buff.WriteString("[")
 	buff.WriteString(strings.Join(elems, ", "))
 	buff.WriteString("]")
+
+	return buff.String()
+}
+
+type HashPair struct {
+	Key   Object
+	Value Object
+}
+type Hash struct {
+	Pairs map[HashKey]HashPair
+}
+
+func (*Hash) Type() ObjectType { return HASH_OBJ }
+func (h *Hash) Inspect() string {
+	var buff bytes.Buffer
+
+	pairs := []string{}
+	for _, pair := range h.Pairs {
+		pairs = append(pairs, fmt.Sprintf("%s: %s", pair.Key.Inspect(), pair.Value.Inspect()))
+	}
+
+	buff.WriteString("{")
+	buff.WriteString(strings.Join(pairs, ", "))
+	buff.WriteString("}")
 
 	return buff.String()
 }

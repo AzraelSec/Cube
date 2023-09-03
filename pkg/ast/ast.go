@@ -2,6 +2,7 @@ package ast
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 
 	"github.com/AzraelSec/cube/pkg/token"
@@ -102,6 +103,28 @@ func (ie *IndexExpression) String() string {
 	return buff.String()
 }
 
+type HashLiteral struct {
+	Token   token.Token // token.LBRACE
+	Content map[Expression]Expression
+}
+
+func (*HashLiteral) expressionNode()         {}
+func (hl *HashLiteral) TokenLiteral() string { return hl.Token.Literal }
+func (hl *HashLiteral) String() string {
+	var buff bytes.Buffer
+
+	elems := []string{}
+	for key, val := range hl.Content {
+		elems = append(elems, fmt.Sprintf("%s:%s", key, val))
+	}
+
+	buff.WriteString("{")
+	buff.WriteString(strings.Join(elems, ", "))
+	buff.WriteString("}")
+
+	return buff.String()
+}
+
 type IfExpression struct {
 	Token       token.Token // token.IF
 	Condition   Expression
@@ -173,7 +196,7 @@ type FunctionLiteral struct {
 	Body       *BlockStatement
 }
 
-func (FunctionLiteral) expressionNode()          {}
+func (*FunctionLiteral) expressionNode()         {}
 func (fl *FunctionLiteral) TokenLiteral() string { return fl.Token.Literal }
 func (fl *FunctionLiteral) String() string {
 	var buff bytes.Buffer
@@ -198,7 +221,7 @@ type CallExpression struct {
 	Args     []Expression
 }
 
-func (CallExpression) expressionNode()          {}
+func (*CallExpression) expressionNode()         {}
 func (ce *CallExpression) TokenLiteral() string { return ce.Token.Literal }
 func (ce *CallExpression) String() string {
 	var buff bytes.Buffer
@@ -283,7 +306,7 @@ type BlockStatement struct {
 	Statements []Statement
 }
 
-func (BlockStatement) statementNode()           {}
+func (*BlockStatement) statementNode()          {}
 func (bs *BlockStatement) TokenLiteral() string { return bs.Token.Literal }
 func (bs *BlockStatement) String() string {
 	var buff bytes.Buffer

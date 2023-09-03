@@ -53,6 +53,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalArrayLiteral(node, env)
 	case *ast.IndexExpression:
 		return evalIndexExpression(node, env)
+	case *ast.HashLiteral:
+		return evalHashLiteral(node, env)
 	}
 	return nil
 }
@@ -301,12 +303,14 @@ func evalIndexExpression(node *ast.IndexExpression, env *object.Environment) obj
 
 	switch {
 	case leftVal.Type() == object.ARRAY_OBJ && indexVal.Type() == object.INTEGER_OBJ:
-		return evalArrayIndexExpression(leftVal, indexVal, env)
+		return evalArrayIndexExpression(leftVal, indexVal)
+	case leftVal.Type() == object.HASH_OBJ:
+		return evalHashIndexExpression(leftVal, indexVal)
 	default:
 		return newError("index operator not supported: %s", leftVal.Type())
 	}
 }
-func evalArrayIndexExpression(array, index object.Object, env *object.Environment) object.Object {
+func evalArrayIndexExpression(array, index object.Object) object.Object {
 	arrayObj := array.(*object.Array)
 	indexVal := index.(*object.Integer).Value
 
@@ -316,4 +320,45 @@ func evalArrayIndexExpression(array, index object.Object, env *object.Environmen
 	}
 
 	return arrayObj.Elements[indexVal]
+}
+func evalHashIndexExpression(hash, key object.Object) object.Object {
+	hashVal := hash.(*object.Hash)
+
+	keyVal, ok := key.(object.Hashable)
+	if !ok {
+		return newError("not hashable key: %s", key.Type())
+	}
+
+	pair, ok := hashVal.Pairs[keyVal.HashKey()]
+	if !ok {
+		return NULL
+	}
+
+	return pair.Value
+}
+
+func evalHashLiteral(node *ast.HashLiteral, env *object.Environment) object.Object {
+	pairs := make(map[object.HashKey]object.HashPair)
+
+	for keyNode, valNode := range node.Content {
+		key := Eval(keyNode, env)
+		if isError(key) {
+			return key
+		}
+
+		hk, ok := key.(object.Hashable)
+		if !ok {
+			return newError("not hashable key: %s", key.Type())
+		}
+
+		val := Eval(valNode, env)
+		if isError(val) {
+			return val
+		}
+
+		hashed := hk.HashKey()
+		pairs[hashed] = object.HashPair{Key: key, Value: val}
+	}
+
+	return &object.Hash{Pairs: pairs}
 }
